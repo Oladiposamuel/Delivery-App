@@ -4,6 +4,7 @@ const Customer = require('../models/customer');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto').webcrypto;
 const mongodb = require('mongodb');
+const Cart = require('../models/cart');
 const ObjectId = mongodb.ObjectId;
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -31,7 +32,7 @@ exports.signup = async (req, res, next) => {
 
 
     try {
-        const customer = new Customer(firstName, lastName, email, hashPassword, phoneNumber);
+        const customer = new Customer(firstName, lastName, email, hashPassword, phoneNumber, null);
         const savedCustomerDetailsCheck = await Customer.findCustomer(email);
         if (savedCustomerDetailsCheck) {
             const error = new Error('Customer exists already!');
@@ -41,8 +42,13 @@ exports.signup = async (req, res, next) => {
         const savedCustomer = await customer.save();
         const savedCustomerDetails = await Customer.findCustomer(email);
 
-        console.log(savedCustomerDetails);
+        const cart = new Cart(savedCustomerDetails._id);
+        const savedCart = await cart.save();
+        const savedCartId = await Cart.findByCustomerId(savedCustomerDetails._id);
+        const updatedCustomerDetails = await Customer.updateCartId(savedCustomerDetails._id, savedCartId._id);
 
+
+        if(savedCustomerDetails) {
         client.messages
         .create({
             body: `Your verifiation code is ${verificationCode}`,
@@ -50,6 +56,8 @@ exports.signup = async (req, res, next) => {
             to: phoneNumber
         })
         .then(message => console.log(message.sid));
+        }
+
 
         const verificationToken = jwt.sign({
             email: savedCustomerDetails.email,
@@ -58,10 +66,10 @@ exports.signup = async (req, res, next) => {
             code: verificationCode,
         },
         'verificationsecretprivatekey',
-        {expiresIn: '120s'}
+        {expiresIn: '1h'}
         )
 
-        res.status(201).send({message: 'You will get your verification code on your device soon. It expires in 2 minutes.', verificationToken: verificationToken});
+        res.status(201).send({message: 'You will get your verification code on your device soon. It expires in 1 hour.', verificationToken: verificationToken});
     } catch(error) {
         next(error);
     }
@@ -131,8 +139,9 @@ exports.login = async(req, res, next) => {
         }
 
         const token = jwt.sign({
-            email: savedAdmin.email,
-            userId: savedAdmin._id,
+            email: savedCustomer.email,
+            userId: savedCustomer._id,
+            cartId: savedCustomer.cartId
         },
         'customersecretprivatekey',
         {expiresIn: '1h'}
@@ -243,18 +252,6 @@ exports.resetPassword = async (req, res, next) => {
     try {
         const savedCustomer= await Customer.findCustomerById(userId);
 
-        // bcrypt.compare(oldPassword, savedCustomer.password, function(err, res) {
-        //     //console.log(res);
-        //     if(err) {
-        //         console.log(err);
-        //     }
-        //     if (!res) {
-        //         const error = new Error('Wrong old password!');
-        //         error.statusCode = 401;
-        //         throw error;
-        //     }
-        // })
-
         const checkPassword = bcrypt.compareSync(oldPassword, savedCustomer.password); 
         console.log(checkPassword);
         if(!checkPassword) {
@@ -275,6 +272,43 @@ exports.resetPassword = async (req, res, next) => {
 
         res.status(201).send({message: 'Password has been reset!', oldPassword: oldPassword, newPassword: newPassword});
     } catch (error) {
+        next(error);
+    }
+}
+
+exports.addToCart = async (req, res, next) => {
+    const prodId = ObjectId(req.params.productId);
+    
+    const cartId = ObjectId(req.cartId);
+    const customerId = ObjectId(req.customerId);
+
+    try {  
+        const savedCustomer = await Customer.findCustomerById(customerId);
+        const isVerified = savedCustomer.isVerified;
+        if(isVerified === false) {
+            const error = new Error('Verify your account!');
+            error.statusCode = 401;
+            throw error;
+        } else {
+            const customerCart = await Cart.updateCart(cartId, prodId);
+
+            res.status(201).send({message: 'Product added to cart!'});
+        }
+    } catch(error) {
+        next(error);
+    }
+}
+
+exports.increaseCartItem = async (req, res, next) => {
+    const prodId = ObjectId(req.params.productId);
+
+    const customerId = ObjectId(req.customerId); 
+    const cartId = ObjectId(req.cartId);
+
+    try {
+        await Cart.updateCart(cartId, prodId);
+        res.status(201).send({message: 'Product quantity increased by 1'});
+    } catch(error) {
         next(error);
     }
 }

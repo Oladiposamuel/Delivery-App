@@ -2,19 +2,27 @@ const express = require('express');
 
 const router = express.Router();
 
-const authController = require('../controllers/customer');
+const customerController = require('../controllers/customer');
 
-router.put('/signup', authController.signup);
+const isAuthCustomer = require('../middlewares/isAuthCustomer');
 
-router.post('/verify', authController.verify);
+router.put('/signup', customerController.signup);
 
-router.post('/login', authController.login);
+router.post('/verify', customerController.verify);
 
-router.post('/resendcode', authController.resendVerificationCode);
+router.post('/login', customerController.login);
 
-router.patch('/forgotpassword', authController.forgotPassword);
+router.post('/resendcode', customerController.resendVerificationCode);
 
-router.patch('/resetpassword', authController.resetPassword);
+router.patch('/forgotpassword', customerController.forgotPassword);
+
+router.patch('/resetpassword', customerController.resetPassword);
+
+router.post('/addtocart/:productId', isAuthCustomer, customerController.addToCart);
+
+router.post('/increaseproduct/:productId', isAuthCustomer, customerController.increaseCartItem);
+
+
 
 
 
