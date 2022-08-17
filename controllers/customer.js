@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto').webcrypto;
 const mongodb = require('mongodb');
 const Cart = require('../models/cart');
+const Product = require('../models/product');
+const Order = require('../models/order');
 const ObjectId = mongodb.ObjectId;
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -144,7 +146,7 @@ exports.login = async(req, res, next) => {
             cartId: savedCustomer.cartId
         },
         'customersecretprivatekey',
-        {expiresIn: '1h'}
+        {expiresIn: '10h'}
         )
         
         res.status(200).send({message: 'Logged in!', token: token, customer: savedCustomer});
@@ -306,8 +308,86 @@ exports.increaseCartItem = async (req, res, next) => {
     const cartId = ObjectId(req.cartId);
 
     try {
-        await Cart.updateCart(cartId, prodId);
+        const updatedCart = await Cart.updateCart(cartId, prodId);
+        if (!updatedCart) {
+            res.status(404).send({message: 'Product not found in cart!'});
+        }
         res.status(201).send({message: 'Product quantity increased by 1'});
+    } catch(error) {
+        next(error);
+    }
+}
+
+exports.decreaseCartItem = async (req, res, next) => {
+    const prodId = ObjectId(req.params.productId);
+
+    const customerId = ObjectId(req.customerId); 
+    const cartId = ObjectId(req.cartId);
+
+    try {
+        const updatedCart = await Cart.updateCartDec(cartId, prodId);
+        if (!updatedCart) {
+            res.status(404).send({message: 'Product not found in cart!'});
+        }
+        res.status(201).send({message: 'Product quantity decreased by 1'});
+    } catch(error) {
+        next(error);
+    }
+}
+
+exports.createOrder = async (req, res, next) => {
+    const cartId = ObjectId(req.cartId);
+    const customerId = ObjectId(req.customerId); 
+
+    const customerCart = await Cart.findById(cartId);
+    console.log(customerCart); 
+
+    try {
+
+        const prodDetails = await Promise.all(customerCart.products.map(async (product) => {
+            if (!product) {
+                const error = new Error('Add products to cart!');
+                error.statusCode = 404;
+                throw error;
+            }
+    
+            const prodId = product.prodId;
+            const prodDetails = await Product.findProductById(prodId);
+            return prodDetails;
+        }));
+
+        console.log(prodDetails);
+
+        const productsPrice = prodDetails.map(product => {return product.price});
+
+        const productsQuantity = customerCart.products.map(product => {return product.quantity});
+
+        //console.log(productsPrice);
+        //console.log(productsQuantity);
+
+        let resultArray = [];
+
+        const totalPrice = () => {
+            for (let i = 0; i < Math.min(productsPrice.length, productsQuantity.length); i++) {
+                resultArray[i] = productsPrice[i] * productsQuantity[i];
+            }
+            //console.log(resultArray);
+
+            let total = resultArray.reduce(function(a, b){
+                return a + b;
+            }, 0);
+
+            return total;
+        }
+
+        const totalOrderPrice = totalPrice();
+
+        console.log(totalOrderPrice);
+
+        const order = new Order(customerId, totalOrderPrice, customerCart.products);
+        const savedOrder = order.save();
+    
+        res.status(200).send({message: 'order created!', orderProducts: prodDetails});
     } catch(error) {
         next(error);
     }

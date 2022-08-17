@@ -255,7 +255,7 @@ exports.resetPassword  = async (req, res, next) => {
 exports.createProduct =  async (req, res, next) => {
     const image = req.file;
     const title = req.body.title;
-    const price = req.body.price;
+    const price = parseFloat(req.body.price);
     const description = req.body.description;
     const quantity = parseFloat(req.body.quantity);
     const categoryName = req.body.category;

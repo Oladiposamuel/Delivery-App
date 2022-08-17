@@ -46,7 +46,38 @@ class Cart {
             }   
         })
         .then(result => {
-            console.log(result);
+            return result;
+        })
+        .catch(error => {
+            console.log(error);
+        })
+    }
+
+    static updateCartDec (id, prodId) {
+        const db = getDb();
+        return db.collection('cart').findOne({_id: id})
+        .then(customerCart => {
+            let isEqual;
+            let productIndex;
+
+            customerCart.products.map((product, index) => {
+                if ( product.prodId.toString() === prodId.toString() ) {
+                    console.log(product);
+                    isEqual = true;
+                    productIndex = index;
+                }
+            }) 
+
+            console.log(isEqual);
+            console.log(productIndex);
+
+            if (isEqual === true) {
+                const newQuantity = customerCart.products[productIndex].quantity -= 1;
+                return db.collection('cart').updateOne({_id: id, "products.prodId": prodId}, {$set: {"products.$.quantity": newQuantity}})
+            }
+        })
+        .then(result => {
+            return result;
         })
         .catch(error => {
             console.log(error);
@@ -67,8 +98,8 @@ class Cart {
     static findById (id) {
         const db = getDb();
         return db.collection('cart').findOne({_id: id})
-        .then(result => {
-            return result;
+        .then(cart => {
+            return cart;
         })
         .catch(error => {
             console.log(error);

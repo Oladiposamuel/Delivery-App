@@ -22,7 +22,9 @@ router.post('/addtocart/:productId', isAuthCustomer, customerController.addToCar
 
 router.post('/increaseproduct/:productId', isAuthCustomer, customerController.increaseCartItem);
 
+router.post('/decreaseproduct/:productId', isAuthCustomer, customerController.decreaseCartItem);
 
+router.post('/createorder', isAuthCustomer, customerController.createOrder);
 
 
 
