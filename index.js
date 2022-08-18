@@ -4,12 +4,20 @@ const dotenv = require('dotenv').config();
 const {mongoConnect} = require('./util/database');
 const bodyParser = require('body-parser');
 const multer = require('multer');
+const cors =  require('cors');
 
 const customerRoutes = require('./routes/customer');
 const courierRoutes = require('./routes/courier');
 const adminRoutes = require('./routes/admin');
 
 const app = express();
+
+const corsOptions = {
+  origin: '*',
+  credentials: true,
+  optionSuccessStatus: 200,
+}
+app.use(cors(corsOptions));
 
 app.use(bodyParser.urlencoded({ extended: false }));
 

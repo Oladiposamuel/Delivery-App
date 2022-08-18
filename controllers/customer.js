@@ -1,9 +1,11 @@
+const https = require('https');
 const dotenv = require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const Customer = require('../models/customer');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto').webcrypto;
 const mongodb = require('mongodb');
+const axios = require('axios');
 const Cart = require('../models/cart');
 const Product = require('../models/product');
 const Order = require('../models/order');
@@ -385,12 +387,133 @@ exports.createOrder = async (req, res, next) => {
         console.log(totalOrderPrice);
 
         const order = new Order(customerId, totalOrderPrice, customerCart.products);
-        const savedOrder = order.save();
+        const savedOrderDetails = await order.save();
     
-        res.status(200).send({message: 'order created!', orderProducts: prodDetails});
+        res.status(200).send({message: 'order created!', orderProducts: prodDetails, order: savedOrderDetails});
     } catch(error) {
         next(error);
     }
+}
+
+exports.payForOrder = async (req, res, next) => {
+    const orderId = ObjectId(req.params.orderId);
+    const customerId = ObjectId(req.customerId);
+
+    try {
+        const savedOrder = await Order.findById(orderId);
+
+        const savedCustomer = await Customer.findCustomerById(customerId);
+
+        const email = savedCustomer.email;
+
+        //console.log(savedOrder);
+
+        const totalAmount = savedOrder.totalPrice;
+
+        const params = JSON.stringify({
+            "email": email,
+            "amount": totalAmount * 100
+        })
+
+        const options = {
+            hostname: 'api.paystack.co',
+            port: 443,
+            path: '/transaction/initialize',
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer sk_test_b579d50e0976f15d6d022c33f3f87573117be2ee',
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache'
+            }
+        }
+
+
+        const req = https.request(options, res => {
+        let data = ''
+        let resData;
+        
+        res.on('data', (chunk) => {
+            data += chunk
+        });
+        
+        res.on('end', (res) => {
+            resData = JSON.parse(data);
+            //console.log(resData);
+            //url = resData.data.authorization_url;
+            processData(resData);
+        })
+
+
+        }).on('error', error => {
+        console.error(error)
+        })
+        
+        req.write(params)
+        req.end()
+
+        //console.log('here');
+        const processData = async (resData) => {
+            console.log(resData);
+            const reference = resData.data.reference;
+            const verifyTransaction = async () => {
+                console.log('here');
+                console.log(reference);
+                console.log('here');
+                await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+                    headers: {
+                        Authorization: 'Bearer sk_test_b579d50e0976f15d6d022c33f3f87573117be2ee',
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                })
+                .then(result => {
+                    console.log(result);
+                })
+                .catch(error => {
+                    console.log(error);
+                })
+            }
+            
+            setTimeout(verifyTransaction, 60000, reference);
+
+            res.json({message: 'Message!', data: resData});
+        }
+    } catch(error) {
+        next(error);
+    }
+
+}
+
+exports.verifyPayment = async (req, res, next) => {
+    const orderId = ObjectId(req.params.orderId);
+    const reference = req.params.reference;
+    console.log(reference);
+
+        const options = {
+            hostname: 'api.paystack.co',
+            port: 443,
+            path: '/transaction/verify/' + reference,
+            method: 'GET',
+            headers: {
+              Authorization: 'Bearer SECRET_KEY'
+            }
+          }
+          console.log(options.path);
+          
+          https.request(options, res => {
+            let data = ''
+          
+            res.on('data', (chunk) => {
+              data += chunk
+            });
+          
+            res.on('end', () => {
+              console.log(JSON.parse(data))
+            })
+          }).on('error', error => {
+            console.error(error)
+          })
+   
 }
 
 

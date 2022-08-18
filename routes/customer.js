@@ -20,11 +20,15 @@ router.patch('/resetpassword', customerController.resetPassword);
 
 router.post('/addtocart/:productId', isAuthCustomer, customerController.addToCart);
 
-router.post('/increaseproduct/:productId', isAuthCustomer, customerController.increaseCartItem);
+router.patch('/increaseproduct/:productId', isAuthCustomer, customerController.increaseCartItem);
 
-router.post('/decreaseproduct/:productId', isAuthCustomer, customerController.decreaseCartItem);
+router.patch('/decreaseproduct/:productId', isAuthCustomer, customerController.decreaseCartItem);
 
-router.post('/createorder', isAuthCustomer, customerController.createOrder);
+router.get('/createorder', isAuthCustomer, customerController.createOrder);
+
+router.get('/payfororder/:orderId', isAuthCustomer, customerController.payForOrder);
+
+router.get('/verifypayment/:orderId/:reference', isAuthCustomer, customerController.verifyPayment);
 
 
 

@@ -14,9 +14,24 @@ class Order {
         const db = getDb();
         return db.collection('order').insertOne(this)
         .then(order => {
-            return order;
+            //console.log(order);
+            return db.collection('order').findOne({_id: order.insertedId})
+            .then(orderDetails => {
+                return orderDetails;
+            })
         })
         .catch (error => {
+            console.log(error);
+        })
+    }
+
+    static findById(id) {
+        const db = getDb();
+        return db.collection('order').findOne({_id: id})
+        .then(order => {
+            return order;
+        })
+        .catch(error => {
             console.log(error);
         })
     }
