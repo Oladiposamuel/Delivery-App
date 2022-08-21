@@ -28,8 +28,6 @@ router.get('/createorder', isAuthCustomer, customerController.createOrder);
 
 router.get('/payfororder/:orderId', isAuthCustomer, customerController.payForOrder);
 
-router.get('/verifypayment/:orderId/:reference', isAuthCustomer, customerController.verifyPayment);
-
 
 
 module.exports = router;

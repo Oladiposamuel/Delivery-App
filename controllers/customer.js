@@ -455,26 +455,54 @@ exports.payForOrder = async (req, res, next) => {
         const processData = async (resData) => {
             console.log(resData);
             const reference = resData.data.reference;
-            const verifyTransaction = async () => {
-                console.log('here');
-                console.log(reference);
-                console.log('here');
-                await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-                    headers: {
-                        Authorization: 'Bearer sk_test_b579d50e0976f15d6d022c33f3f87573117be2ee',
-                        'Content-Type': 'application/json',
-                        'Cache-Control': 'no-cache'
+            let myInterval;
+            let stopVerification = false;
+
+                const verifyTransaction = async () => {
+                    await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+                        headers: {
+                            Authorization: 'Bearer sk_test_b579d50e0976f15d6d022c33f3f87573117be2ee',
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        }
+                    })
+                    .then(async(result) => {
+                        console.log(result.data);
+                            if (result.data.data.gateway_response !== 'Successful') {
+                                console.log('hereee');
+                                console.log(result.data);
+                                start();
+                            } else {
+                                stop();
+                                await Order.orderUpdate(orderId);
+                            }
+                    })
+                    .catch(error => {
+                        console.log(error);
+                    })
+                }
+                console.log(stopVerification);
+                if (stopVerification !== true) {
+                    verifyTransaction();
+                    console.log('here');
+                } else {
+                    return;
+                }
+                
+                const stop = () => {
+                    stopVerification = true;
+                    clearInterval(myInterval);
+                    myInterval = null;
+                }
+
+                const start = () => {
+                    if (!myInterval) {
+                        myInterval =  setInterval(verifyTransaction, 30000);
                     }
-                })
-                .then(result => {
-                    console.log(result);
-                })
-                .catch(error => {
-                    console.log(error);
-                })
-            }
+                }
+                
             
-            setTimeout(verifyTransaction, 60000, reference);
+            //setTimeout(verifyTransaction, 60000, reference);
 
             res.json({message: 'Message!', data: resData});
         }
@@ -482,38 +510,6 @@ exports.payForOrder = async (req, res, next) => {
         next(error);
     }
 
-}
-
-exports.verifyPayment = async (req, res, next) => {
-    const orderId = ObjectId(req.params.orderId);
-    const reference = req.params.reference;
-    console.log(reference);
-
-        const options = {
-            hostname: 'api.paystack.co',
-            port: 443,
-            path: '/transaction/verify/' + reference,
-            method: 'GET',
-            headers: {
-              Authorization: 'Bearer SECRET_KEY'
-            }
-          }
-          console.log(options.path);
-          
-          https.request(options, res => {
-            let data = ''
-          
-            res.on('data', (chunk) => {
-              data += chunk
-            });
-          
-            res.on('end', () => {
-              console.log(JSON.parse(data))
-            })
-          }).on('error', error => {
-            console.error(error)
-          })
-   
 }
 
 

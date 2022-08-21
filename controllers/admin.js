@@ -47,7 +47,7 @@ exports.signup = async (req, res, next) => {
         {expiresIn: '1h'}
         )
 
-        const url = `http://localhost:8080/verify`;
+        const url = `http://localhost:8080/admin/verify`;
 
         transport.sendMail({
             to: email,
@@ -137,7 +137,7 @@ exports.login = async (req, res, next) => {
     }
 }
 
-exports. resendVerification = async (req, res, next) => {
+exports.resendVerification = async (req, res, next) => {
 
     const AuthHeader = req.get('Authorization');
     //console.log(AuthHeader);
@@ -163,7 +163,7 @@ exports. resendVerification = async (req, res, next) => {
     }
 
     try {
-        const url = `http://localhost:8080/verify`;
+        const url = `http://localhost:8080/admin/verify`;
 
         transport.sendMail({
             to: decodedToken.email,

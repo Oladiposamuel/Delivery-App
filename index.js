@@ -51,7 +51,7 @@ app.use('/images', express.static(path.join(__dirname, 'images')));
 
 
 app.use('/customer', customerRoutes );
-// app.use('/courier', courierRoutes);
+app.use('/courier', courierRoutes);
 app.use('/admin', adminRoutes);
 
 

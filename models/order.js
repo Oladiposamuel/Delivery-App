@@ -8,6 +8,7 @@ class Order {
         this.totalPrice = totalPrice;
         this.isProcessed = false;
         this.dateAdded = new Date();
+        this.isDelivered = false;
     }
 
     save() {
@@ -30,6 +31,28 @@ class Order {
         return db.collection('order').findOne({_id: id})
         .then(order => {
             return order;
+        })
+        .catch(error => {
+            console.log(error);
+        })
+    }
+
+    static orderUpdate(id) {
+        const db = getDb();
+        return db.collection('order').updateOne({_id: id}, {$set: {isProcessed: true}})
+        .then(result => {
+            return result;
+        })
+        .catch(error => {
+            console.log(error);
+        })
+    }
+
+    static findUnDeliveredOrder() {
+        const db = getDb();
+        return db.collection('order').find({isDelivered: false}).toArray()
+        .then(result => {
+            return result;
         })
         .catch(error => {
             console.log(error);
