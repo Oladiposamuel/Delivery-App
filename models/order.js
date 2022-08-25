@@ -8,7 +8,8 @@ class Order {
         this.totalPrice = totalPrice;
         this.isProcessed = false;
         this.dateAdded = new Date();
-        this.isDelivered = false;
+        this.isDelivered = "false";
+        this.isRejected = false;
     }
 
     save() {
@@ -50,7 +51,50 @@ class Order {
 
     static findUnDeliveredOrder() {
         const db = getDb();
-        return db.collection('order').find({isDelivered: false}).toArray()
+        return db.collection('order').find({isDelivered: "false"}).toArray()
+        .then(result => {
+            return result;
+        })
+        .catch(error => {
+            console.log(error);
+        })
+    }
+
+    static updateDeliveryToPending(id, courierId) {
+        const db = getDb();
+        return db.collection('order').updateOne({_id: id}, {$set: {isDelivered: "pending", courierId: courierId, isRejected: false}})
+        .then(result => {
+            return db.collection('order').findOne({_id: id})
+        })
+        .then(result => {
+            return result;
+        })
+        .catch(error => {
+            console.log(error);
+        })
+    }
+
+
+    static rejectOrder(id, courierId) {
+        const db = getDb();
+        return db.collection('order').updateOne({_id: id}, {$set: {isRejected: true}})
+        .then(result => {
+            return db.collection('order').findOne({_id: id})
+        })
+        .then(result => {
+            return result;
+        })
+        .catch(error => {
+            console.log(error);
+        })
+    }
+
+    static completeOrder(id) {
+        const db = getDb();
+        return db.collection('order').updateOne({_id: id}, {$set: {isDelivered: "true"}})
+        .then(result => {
+            return db.collection('order').findOne({_id: id})
+        })
         .then(result => {
             return result;
         })

@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 const Order = require('../models/order');
+const { createSecretKey } = require('crypto');
 
 
 let transport = nodemailer.createTransport({
@@ -22,12 +23,13 @@ exports.signup = async (req, res, next) => {
     const lastName = req.body.lastName;
     const email = req.body.email;
     const password = req.body.password;
+    const orders = [];
 
     let salt = await bcrypt.genSalt(10);
     const hashPassword = await bcrypt.hash(password, salt);
 
     try {
-        const courier = new Courier(firstName, lastName, email, hashPassword);
+        const courier = new Courier(firstName, lastName, email, hashPassword, orders);
         const savedCourierDetailsCheck = await Courier.findCourier(email);
         if (savedCourierDetailsCheck) {
             const error = new Error('Courier exists already!');
@@ -263,7 +265,7 @@ exports.checkForOrder = async (req, res, next) => {
 }
 
 exports.getOrderDetails = async (req, res, next) => {
-    const orderId = req.query.params;
+    const orderId = ObjectId(req.params.orderId);
 
     const savedOrderDetails = Order.findById(orderId);
 
@@ -275,5 +277,36 @@ exports.getOrderDetails = async (req, res, next) => {
 }
 
 exports.acceptOrder = async (req, res, next) => {
-    
+    const orderId = ObjectId(req.params.orderId);
+    const courierId = ObjectId(req.courierId);
+
+    const courier = await Courier.findCourierById(courierId);
+    console.log(courier);
+    const courierOrderArray = courier.orders;
+    console.log(courierOrderArray);
+    courierOrderArray.push(orderId);
+
+    await Courier.updateOrder(courierId, courierOrderArray);
+
+    const updatedOrder = await Order.updateDeliveryToPending(orderId, courierId);
+
+    res.status(201).send({message: 'Order updated', updatedOrder: updatedOrder});
+}
+
+exports.rejectOrder = async (req, res, next) => {
+    const orderId = ObjectId(req.params.orderId);
+    const courierId = ObjectId(req.courierId);
+
+    const updatedOrder = await Order.rejectOrder(orderId, courierId);
+
+    res.status(201).send({message: 'Order rejected!', updatedOrder: updatedOrder});
+}
+
+exports.completedOrder = async (req, res, next) => {
+    const orderId = ObjectId(req.params.orderId);
+    const courierId = ObjectId(req.courierId);
+
+    const updatedOrder = await Order.completeOrder(orderId);
+
+    res.status(201).send({message: 'You have delivered the order', updatedOrder: updatedOrder});
 }

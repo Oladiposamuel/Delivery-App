@@ -22,6 +22,10 @@ router.get('/checkfororder', isAuthCourier, courierController.checkForOrder);
 
 router.get('/getorderdetails/:orderId', isAuthCourier, courierController.getOrderDetails);
 
-router.post('/acceptorder', isAuthCourier, courierController.acceptOrder);
+router.post('/acceptorder/:orderId', isAuthCourier, courierController.acceptOrder);
+
+router.post('/rejectorder/:orderId', isAuthCourier, courierController.rejectOrder);
+
+router.post('/completeorder/:orderId', isAuthCourier, courierController.completedOrder);
 
 module.exports = router;

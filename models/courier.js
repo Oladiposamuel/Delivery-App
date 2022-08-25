@@ -2,13 +2,13 @@ const mongodb = require('mongodb');
 const {getDb} = require('../util/database');
 
 class Courier {
-    constructor(firstName, lastName, email, password) {
+    constructor(firstName, lastName, email, password, orders) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.password = password;
         this.isVerified = false;
-        this.orders = [];
+        this.orders = orders;
     }
 
     save() {
@@ -58,6 +58,17 @@ class Courier {
     static updatePassword(id, hashNewPassword) {
         const db = getDb();
         return db.collection('courier').updateOne({_id: id}, {$set: {password: hashNewPassword}})
+        .then(result => {
+            return result;
+        })
+        .catch(error => {
+            console.log(error);
+        })
+    }
+
+    static updateOrder(id, orders) {
+        const db = getDb();
+        return db.collection('courier').updateOne({_id: id}, {$set: {orders: orders}})
         .then(result => {
             return result;
         })
