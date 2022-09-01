@@ -18,48 +18,56 @@ let transport = nodemailer.createTransport({
   });
 
 exports.signup = async (req, res, next) => {
-    const firstName = req.body.firstName;
-    const lastName = req.body.lastName;
-    const email = req.body.email;
-    const password = req.body.password;
+    const error = validationResult(req);
+    console.log(error);
 
-    let salt = await bcrypt.genSalt(10);
-    const hashPassword = await bcrypt.hash(password, salt);
-
-    try {
-        const admin = new Admin(firstName, lastName, email, hashPassword);
-        const savedAdminDetailsCheck = await Admin.findAdmin(email);
-        if (savedAdminDetailsCheck) {
-            const error = new Error('Admin exists already!');
-            error.statusCode = 400;
-            throw error;
+    if(error.isEmpty()) {
+        const firstName = req.body.firstName;
+        const lastName = req.body.lastName;
+        const email = req.body.email;
+        const password = req.body.password;
+    
+        let salt = await bcrypt.genSalt(10);
+        const hashPassword = await bcrypt.hash(password, salt);
+    
+        try {
+            const admin = new Admin(firstName, lastName, email, hashPassword);
+            // const savedAdminDetailsCheck = await Admin.findAdmin(email);
+            // if (savedAdminDetailsCheck) {
+            //     const error = new Error('Admin exists already!');
+            //     error.statusCode = 400;
+            //     throw error;
+            // }
+            const savedAdmin =  await admin.save();
+            const savedAdminDetails = await Admin.findAdmin(email);
+    
+            console.log(savedAdminDetails);
+    
+            const verificationToken = jwt.sign({
+                email: savedAdminDetails.email,
+                userId: savedAdminDetails._id,
+            },
+            'adminverificationsecretprivatekey',
+            {expiresIn: '1h'}
+            )
+    
+            const url = `http://localhost:8080/admin/verify`;
+    
+            transport.sendMail({
+                to: email,
+                subject: 'Verify Account',
+                html: `Click <a href = '${url}'>here</a> to confirm your email. Link expires in an hour.`
+            })
+    
+            res.status(201).send({message: `Sent a verification email to ${email}`, url: url, verificationToken: verificationToken});
+    
+        } catch(error) {
+            next(error);
         }
-        const savedAdmin =  await admin.save();
-        const savedAdminDetails = await Admin.findAdmin(email);
-
-        console.log(savedAdminDetails);
-
-        const verificationToken = jwt.sign({
-            email: savedAdminDetails.email,
-            userId: savedAdminDetails._id,
-        },
-        'adminverificationsecretprivatekey',
-        {expiresIn: '1h'}
-        )
-
-        const url = `http://localhost:8080/admin/verify`;
-
-        transport.sendMail({
-            to: email,
-            subject: 'Verify Account',
-            html: `Click <a href = '${url}'>here</a> to confirm your email. Link expires in an hour.`
-        })
-
-        res.status(201).send({message: `Sent a verification email to ${email}`, url: url, verificationToken: verificationToken});
-
-    } catch(error) {
-        next(error);
+    } else {
+        res.status(422).send({message: 'Input validation failed!', error: error.errors[0]});
     }
+
 }
 
 exports.verify = async (req, res, next) => {
@@ -105,36 +113,44 @@ exports.verify = async (req, res, next) => {
 }
 
 exports.login = async (req, res, next) => {
-    const email = req.body.email;
-    const password = req.body.password;
+    const error = validationResult(req);
+    console.log(error);
+    
+    if(error.isEmpty()) {
+        const email = req.body.email;
+        const password = req.body.password;
 
-    try {
-        const savedAdmin = await Admin.findAdmin(email);
-        if (!savedAdmin) {
-            return res.status(404).send('Admin not found! Please sign up.');
+        try {
+            const savedAdmin = await Admin.findAdmin(email);
+            if (!savedAdmin) {
+                return res.status(404).send('Admin not found! Please sign up.');
+            }
+    
+            const checkPassword = bcrypt.compareSync(password, savedAdmin.password); // true
+            console.log(checkPassword);
+            if(!checkPassword) {
+                const error = new Error('Wrong password!')
+                error.statusCode = 401;
+                throw error;
+            }
+
+            const token = jwt.sign({
+                email: savedAdmin.email,
+                userId: savedAdmin._id,
+            },
+            'adminsecretprivatekey',
+            {expiresIn: '1h'}
+            )
+            
+            res.status(200).send({message: 'Logged in!', token: token, admin: savedAdmin});
+
+        } catch(error) {
+            next(error);
         }
- 
-        const checkPassword = bcrypt.compareSync(password, savedAdmin.password); // true
-        console.log(checkPassword);
-        if(!checkPassword) {
-            const error = new Error('Wrong password!')
-            error.statusCode = 401;
-            throw error;
-        }
-
-        const token = jwt.sign({
-            email: savedAdmin.email,
-            userId: savedAdmin._id,
-        },
-        'adminsecretprivatekey',
-        {expiresIn: '1h'}
-        )
-        
-        res.status(200).send({message: 'Logged in!', token: token, admin: savedAdmin});
-
-    } catch(error) {
-        next(error);
+    } else {
+        res.status(422).send({message: 'Input validation failed!', error: error.errors[0]});
     }
+
 }
 
 exports.resendVerification = async (req, res, next) => {

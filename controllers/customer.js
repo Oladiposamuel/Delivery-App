@@ -10,6 +10,7 @@ const Cart = require('../models/cart');
 const Product = require('../models/product');
 const Order = require('../models/order');
 const ObjectId = mongodb.ObjectId;
+const { validationResult } = require('express-validator');
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -17,65 +18,72 @@ const client = require('twilio')(accountSid, authToken);
 
 
 exports.signup = async (req, res, next) => {
-    const firstName = req.body.firstName;
-    const lastName = req.body.lastName;
-    const email = req.body.email;
-    const password = req.body.password;
-    const phoneNumber = req.body.phoneNumber;
+    const error = validationResult(req);
+    console.log(error);
 
-    let salt = await bcrypt.genSalt(10);
-    const hashPassword = await bcrypt.hash(password, salt);
+    if(error.isEmpty()) {
+        const firstName = req.body.firstName;
+        const lastName = req.body.lastName;
+        const email = req.body.email;
+        const password = req.body.password;
+        const phoneNumber = req.body.phoneNumber;
 
-    const array = new BigUint64Array(1);
-    const result = crypto.getRandomValues(array);
-    const number = result.toString();
-    const verificationCode = number.slice(0, 6);
+        let salt = await bcrypt.genSalt(10);
+        const hashPassword = await bcrypt.hash(password, salt);
 
-    console.log(verificationCode);
-    console.log(verificationCode.length);
+        const array = new BigUint64Array(1);
+        const result = crypto.getRandomValues(array);
+        const number = result.toString();
+        const verificationCode = number.slice(0, 6);
+
+        console.log(verificationCode);
+        console.log(verificationCode.length);
 
 
-    try {
-        const customer = new Customer(firstName, lastName, email, hashPassword, phoneNumber, null);
-        const savedCustomerDetailsCheck = await Customer.findCustomer(email);
-        if (savedCustomerDetailsCheck) {
-            const error = new Error('Customer exists already!');
-            error.statusCode = 400;
-            throw error;
+        try {
+            const customer = new Customer(firstName, lastName, email, hashPassword, phoneNumber, null);
+            const savedCustomerDetailsCheck = await Customer.findCustomer(email);   
+            // if (savedCustomerDetailsCheck) {
+            //     const error = new Error('Customer exists already!');
+            //     error.statusCode = 400;
+            //     throw error;
+            // }
+            const savedCustomer = await customer.save();
+            const savedCustomerDetails = await Customer.findCustomer(email);
+
+            const cart = new Cart(savedCustomerDetails._id);
+            const savedCart = await cart.save();
+            const savedCartId = await Cart.findByCustomerId(savedCustomerDetails._id);
+            const updatedCustomerDetails = await Customer.updateCartId(savedCustomerDetails._id, savedCartId._id);
+
+
+            if(savedCustomerDetails) {
+            client.messages
+            .create({
+                body: `Your verifiation code is ${verificationCode}`,
+                from: '+15625392194',
+                to: phoneNumber
+            })
+            .then(message => console.log(message.sid));
+            }
+
+
+            const verificationToken = jwt.sign({
+                email: savedCustomerDetails.email,
+                userId: savedCustomerDetails._id,
+                phoneNumber: savedCustomerDetails.phoneNumber,
+                code: verificationCode,
+            },
+            'verificationsecretprivatekey',
+            {expiresIn: '1h'}
+            )
+
+            res.status(201).send({message: 'You will get your verification code on your device soon. It expires in 1 hour.', verificationToken: verificationToken});
+        } catch(error) {
+            next(error);
         }
-        const savedCustomer = await customer.save();
-        const savedCustomerDetails = await Customer.findCustomer(email);
-
-        const cart = new Cart(savedCustomerDetails._id);
-        const savedCart = await cart.save();
-        const savedCartId = await Cart.findByCustomerId(savedCustomerDetails._id);
-        const updatedCustomerDetails = await Customer.updateCartId(savedCustomerDetails._id, savedCartId._id);
-
-
-        if(savedCustomerDetails) {
-        client.messages
-        .create({
-            body: `Your verifiation code is ${verificationCode}`,
-            from: '+15625392194',
-            to: phoneNumber
-        })
-        .then(message => console.log(message.sid));
-        }
-
-
-        const verificationToken = jwt.sign({
-            email: savedCustomerDetails.email,
-            userId: savedCustomerDetails._id,
-            phoneNumber: savedCustomerDetails.phoneNumber,
-            code: verificationCode,
-        },
-        'verificationsecretprivatekey',
-        {expiresIn: '1h'}
-        )
-
-        res.status(201).send({message: 'You will get your verification code on your device soon. It expires in 1 hour.', verificationToken: verificationToken});
-    } catch(error) {
-        next(error);
+    } else {
+        res.status(422).send({message: 'Input validation failed!', error: error.errors[0]});
     }
 }
 
@@ -124,38 +132,50 @@ exports.verify = async (req, res, next) => {
     }
 }
 
+exports.loginWithGoogle = (req, res) => {
+    res.send("<button><a href='/auth'>Login With Google</a></button>");
+}
+
 exports.login = async(req, res, next) => {
-    const email = req.body.email;
-    const password = req.body.password;
+    const error = validationResult(req);
+    console.log(error);
+    
+    if(error.isEmpty()) {
+        const email = req.body.email;
+        const password = req.body.password;
 
-    try {
-        const savedCustomer = await Customer.findCustomer(email);
-        if (!savedCustomer) {
-            return res.status(404).send('Customer not found! Please sign up.');
+        try {
+            const savedCustomer = await Customer.findCustomer(email);
+            if (!savedCustomer) {
+                return res.status(404).send('Customer not found! Please sign up.');
+            }
+
+            const checkPassword = bcrypt.compareSync(password, savedCustomer.password); 
+            console.log(checkPassword);
+            if(!checkPassword) {
+                const error = new Error('Wrong password!')
+                error.statusCode = 401;
+                throw error;
+            }
+
+            const token = jwt.sign({
+                email: savedCustomer.email,
+                userId: savedCustomer._id,
+                cartId: savedCustomer.cartId
+            },
+            'customersecretprivatekey',
+            {expiresIn: '10h'}
+            )
+            
+            res.status(200).send({message: 'Logged in!', token: token, customer: savedCustomer});
+
+        } catch(error) {
+            next(error);
         }
-
-        const checkPassword = bcrypt.compareSync(password, savedCustomer.password); 
-        console.log(checkPassword);
-        if(!checkPassword) {
-            const error = new Error('Wrong password!')
-            error.statusCode = 401;
-            throw error;
-        }
-
-        const token = jwt.sign({
-            email: savedCustomer.email,
-            userId: savedCustomer._id,
-            cartId: savedCustomer.cartId
-        },
-        'customersecretprivatekey',
-        {expiresIn: '10h'}
-        )
-        
-        res.status(200).send({message: 'Logged in!', token: token, customer: savedCustomer});
-
-    } catch(error) {
-        next(error);
+    } else {
+        res.status(422).send({message: 'Input validation failed!', error: error.errors[0]});
     }
+
 }
 
 exports.resendVerificationCode = async (req, res, next) => {
@@ -512,6 +532,40 @@ exports.payForOrder = async (req, res, next) => {
 
 }
 
+exports.trackMyOrder = async (req, res, next) => {
 
+    // await axios.post(
+    //     `https://maps.googleapis.com/maps/api/staticmap?center=Berkeley,CA&zoom=14&size=400x400&key=AIzaSyD7lrgIVzTnYtihlANc4XmE_Ae_B9NAugY`, 
+    //     {
+    //         headers: {
+    //             'Content-Type': 'application/json',
+    //             'Cache-Control': 'no-cache'
+    //         }
+    //     })
+    //     .then(result => {
+    //         console.log(result);
+    //         res.send('request sent!');
+    //     })
+    //     .catch(error => {
+    //         next(error);
+    //     })
+
+    mapsClient
+    .elevation({ 
+        params: {
+        locations: [{ lat: 6.537216, lng: 3.3718272 }],
+        key: "AIzaSyAjJeeY6yeyh5Di8g_SMco3VFho6-JMFAA",
+        },
+        timeout: 1000, // milliseconds
+    })
+    .then((r) => {
+        console.log(r.data.results[0].elevation);
+        res.send('request sent!');
+    })
+    .catch((e) => {
+        console.log(e.response.data.error_message);
+    });
+
+}
 
 

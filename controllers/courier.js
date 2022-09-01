@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 const Order = require('../models/order');
 const { createSecretKey } = require('crypto');
+const { validationResult } = require('express-validator');
 
 
 let transport = nodemailer.createTransport({
@@ -19,49 +20,57 @@ let transport = nodemailer.createTransport({
 });
 
 exports.signup = async (req, res, next) => {
-    const firstName = req.body.firstName;
-    const lastName = req.body.lastName;
-    const email = req.body.email;
-    const password = req.body.password;
-    const orders = [];
+    const error = validationResult(req);
+    console.log(error);
 
-    let salt = await bcrypt.genSalt(10);
-    const hashPassword = await bcrypt.hash(password, salt);
+    if(error.isEmpty()) {
+        const firstName = req.body.firstName;
+        const lastName = req.body.lastName;
+        const email = req.body.email;
+        const password = req.body.password;
+        const orders = [];
 
-    try {
-        const courier = new Courier(firstName, lastName, email, hashPassword, orders);
-        const savedCourierDetailsCheck = await Courier.findCourier(email);
-        if (savedCourierDetailsCheck) {
-            const error = new Error('Courier exists already!');
-            error.statusCode = 400;
-            throw error;
+        let salt = await bcrypt.genSalt(10);
+        const hashPassword = await bcrypt.hash(password, salt);
+
+        try {
+            const courier = new Courier(firstName, lastName, email, hashPassword, orders);
+            // const savedCourierDetailsCheck = await Courier.findCourier(email);
+            // if (savedCourierDetailsCheck) {
+            //     const error = new Error('Courier exists already!');
+            //     error.statusCode = 400;
+            //     throw error;
+            // }
+            const savedCourier =  await courier.save();
+            const savedCourierDetails = await Courier.findCourier(email);
+
+            console.log(savedCourierDetails);
+
+            const verificationToken = jwt.sign({
+                email: savedCourierDetails.email,
+                userId: savedCourierDetails._id,
+            },
+            'courierverificationsecretprivatekey',
+            {expiresIn: '1h'}
+            )
+
+            const url = `http://localhost:8080/courier/verify`;
+
+            transport.sendMail({
+                to: email,
+                subject: 'Verify Account',
+                html: `Click <a href = '${url}'>here</a> to confirm your email. Link expires in an hour.`
+            })
+
+            res.status(201).send({message: `Sent a verification email to ${email}`, url: url, verificationToken: verificationToken});
+
+        } catch(error) {
+            next(error);
         }
-        const savedCourier =  await courier.save();
-        const savedCourierDetails = await Courier.findCourier(email);
-
-        console.log(savedCourierDetails);
-
-        const verificationToken = jwt.sign({
-            email: savedCourierDetails.email,
-            userId: savedCourierDetails._id,
-        },
-        'courierverificationsecretprivatekey',
-        {expiresIn: '1h'}
-        )
-
-        const url = `http://localhost:8080/courier/verify`;
-
-        transport.sendMail({
-            to: email,
-            subject: 'Verify Account',
-            html: `Click <a href = '${url}'>here</a> to confirm your email. Link expires in an hour.`
-        })
-
-        res.status(201).send({message: `Sent a verification email to ${email}`, url: url, verificationToken: verificationToken});
-
-    } catch(error) {
-        next(error);
+    } else {
+        res.status(422).send({message: 'Input validation failed!', error: error.errors[0]});
     }
+
 }
 
 exports.verify = async (req, res, next) => {
@@ -107,35 +116,42 @@ exports.verify = async (req, res, next) => {
 }
 
 exports.login = async (req, res, next) => {
-    const email = req.body.email;
-    const password = req.body.password;
+    const error = validationResult(req);
+    console.log(error);
 
-    try {
-        const savedCourier = await Courier.findCourier(email);
-        if (!savedCourier) {
-            return res.status(404).send('Courier not found! Please sign up.');
+    if(error.isEmpty()) {
+        const email = req.body.email;
+        const password = req.body.password;
+
+        try {
+            const savedCourier = await Courier.findCourier(email);
+            if (!savedCourier) {
+                return res.status(404).send('Courier not found! Please sign up.');
+            }
+    
+            const checkPassword = bcrypt.compareSync(password, savedCourier.password); // true
+            console.log(checkPassword);
+            if(!checkPassword) {
+                const error = new Error('Wrong password!')
+                error.statusCode = 401;
+                throw error;
+            }
+
+            const token = jwt.sign({
+                email: savedCourier.email,
+                userId: savedCourier._id,
+            },
+            'couriersecretprivatekey',
+            {expiresIn: '10h'}
+            )
+            
+            res.status(200).send({message: 'Logged in!', token: token, courier: savedCourier});
+
+        } catch(error) {
+            next(error);
         }
- 
-        const checkPassword = bcrypt.compareSync(password, savedCourier.password); // true
-        console.log(checkPassword);
-        if(!checkPassword) {
-            const error = new Error('Wrong password!')
-            error.statusCode = 401;
-            throw error;
-        }
-
-        const token = jwt.sign({
-            email: savedCourier.email,
-            userId: savedCourier._id,
-        },
-        'couriersecretprivatekey',
-        {expiresIn: '10h'}
-        )
-        
-        res.status(200).send({message: 'Logged in!', token: token, courier: savedCourier});
-
-    } catch(error) {
-        next(error);
+    } else {
+        res.status(422).send({message: 'Input validation failed!', error: error.errors[0]});
     }
 }
 
