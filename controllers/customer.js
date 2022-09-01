@@ -550,21 +550,21 @@ exports.trackMyOrder = async (req, res, next) => {
     //         next(error);
     //     })
 
-    mapsClient
-    .elevation({ 
-        params: {
-        locations: [{ lat: 6.537216, lng: 3.3718272 }],
-        key: "AIzaSyAjJeeY6yeyh5Di8g_SMco3VFho6-JMFAA",
-        },
-        timeout: 1000, // milliseconds
-    })
-    .then((r) => {
-        console.log(r.data.results[0].elevation);
-        res.send('request sent!');
-    })
-    .catch((e) => {
-        console.log(e.response.data.error_message);
-    });
+    // mapsClient
+    // .elevation({ 
+    //     params: {
+    //     locations: [{ lat: 6.537216, lng: 3.3718272 }],
+    //     key: "AIzaSyAjJeeY6yeyh5Di8g_SMco3VFho6-JMFAA",
+    //     },
+    //     timeout: 1000, // milliseconds
+    // })
+    // .then((r) => {
+    //     console.log(r.data.results[0].elevation);
+    //     res.send('request sent!');
+    // })
+    // .catch((e) => {
+    //     console.log(e.response.data.error_message);
+    // });
 
 }
 
